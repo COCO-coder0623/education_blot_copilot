@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>上传测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f5f5f5;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background: white;
+            margin: 20px 0;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+        .file-input {
+            margin: 20px 0;
+        }
+        .file-list {
+            margin: 20px 0;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .file-item {
+            padding: 10px;
+            border: 1px solid #eee;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.3s ease;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🎯 AI作业批改 - 上传测试页面</h1>
+    
+    <div class="upload-area" id="uploadArea">
+        <h3>📸 拖拽图片到这里，或点击选择文件</h3>
+        <p>支持 JPG、PNG、WEBP 格式</p>
+        <input type="file" id="fileInput" accept="image/*" multiple class="file-input">
+    </div>
+    
+    <div id="fileList" class="file-list" style="display:none;">
+        <h3>已选择的文件：</h3>
+        <div id="files"></div>
+        
+        <div>
+            <button class="btn" onclick="testOCR()" id="ocrBtn">🔍 测试OCR识别</button>
+            <button class="btn" onclick="testAIGrading()" id="aiBtn">🤖 测试AI批改</button>
+            <button class="btn" onclick="testCompleteFlow()" id="completeBtn">⚡ 一键批改</button>
+        </div>
+        
+        <div id="progress" style="display:none;">
+            <div class="progress">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+            </div>
+            <div id="progressText">准备中...</div>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+
+    <div class="status info">
+        <h4>📋 测试说明：</h4>
+        <ul>
+            <li>这是一个简化的测试页面，用于排查上传功能问题</li>
+            <li>测试OCR识别：使用模拟数据测试文字识别功能</li>
+            <li>测试AI批改：使用模拟数据测试AI批改功能</li>
+            <li>一键批改：完整的批改流程演示</li>
+            <li>如果这个页面正常工作，说明基础功能没问题</li>
+        </ul>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+        
+        // 拖拽功能
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const filesDiv = document.getElementById('files');
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = Array.from(e.dataTransfer.files);
+            const imageFiles = files.filter(file => file.type.startsWith('image/'));
+            addFiles(imageFiles);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            addFiles(files);
+        });
+        
+        function addFiles(files) {
+            selectedFiles = [...selectedFiles, ...files];
+            updateFileList();
+            fileList.style.display = 'block';
+        }
+        
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+            if (selectedFiles.length === 0) {
+                fileList.style.display = 'none';
+            }
+        }
+        
+        function updateFileList() {
+            filesDiv.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'file-item';
+                fileDiv.innerHTML = `
+                    <span>📄 ${file.name} (${formatFileSize(file.size)})</span>
+                    <button onclick="removeFile(${index})" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px;">删除</button>
+                `;
+                filesDiv.appendChild(fileDiv);
+            });
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        function showProgress(show = true) {
+            document.getElementById('progress').style.display = show ? 'block' : 'none';
+            if (!show) {
+                document.getElementById('progressBar').style.width = '0%';
+                document.getElementById('progressText').textContent = '准备中...';
+            }
+        }
+        
+        function updateProgress(percent, text) {
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+        
+        function showResult(message, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        async function testOCR() {
+            if (selectedFiles.length === 0) {
+                showResult('请先选择图片文件', 'error');
+                return;
+            }
+            
+            showProgress();
+            updateProgress(10, '准备OCR识别...');
+            
+            try {
+                // 模拟OCR处理
+                await sleep(1000);
+                updateProgress(50, '正在识别图片内容...');
+                
+                await sleep(1500);
+                updateProgress(100, 'OCR识别完成！');
+                
+                const mockOCRResult = {
+                    text: '1. 计算: 15 + 28 = ?\n学生答案: 43\n\n2. 计算: 7 × 8 = ?\n学生答案: 56',
+                    confidence: 0.95,
+                    questions: [
+                        { id: 1, questionText: '15 + 28 = ?', studentAnswer: '43' },
+                        { id: 2, questionText: '7 × 8 = ?', studentAnswer: '56' }
+                    ]
+                };
+                
+                showResult(`
+                    <h4>✅ OCR识别成功！</h4>
+                    <p><strong>识别文本：</strong></p>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; white-space: pre-wrap;">${mockOCRResult.text}</pre>
+                    <p><strong>置信度：</strong> ${(mockOCRResult.confidence * 100).toFixed(1)}%</p>
+                    <p><strong>识别题目数：</strong> ${mockOCRResult.questions.length}</p>
+                `, 'success');
+                
+            } catch (error) {
+                showResult(`❌ OCR测试失败: ${error.message}`, 'error');
+            } finally {
+                showProgress(false);
+            }
+        }
+        
+        async function testAIGrading() {
+            if (selectedFiles.length === 0) {
+                showResult('请先选择图片文件', 'error');
+                return;
+            }
+            
+            showProgress();
+            updateProgress(10, '准备AI批改...');
+            
+            try {
+                await sleep(1000);
+                updateProgress(30, 'AI正在分析题目...');
+                
+                await sleep(1500);
+                updateProgress(70, 'AI正在批改答案...');
+                
+                await sleep(1000);
+                updateProgress(100, 'AI批改完成！');
+                
+                const mockGradingResult = {
+                    totalQuestions: 2,
+                    correctAnswers: 2,
+                    score: 100,
+                    questions: [
+                        {
+                            questionText: '15 + 28 = ?',
+                            studentAnswer: '43',
+                            correctAnswer: '43',
+                            isCorrect: true,
+                            explanation: '正确！15 + 28 = 43，这是基础的加法运算。'
+                        },
+                        {
+                            questionText: '7 × 8 = ?',
+                            studentAnswer: '56',
+                            correctAnswer: '56',
+                            isCorrect: true,
+                            explanation: '正确！7 × 8 = 56，这是基础的乘法运算。'
+                        }
+                    ]
+                };
+                
+                const questionsHtml = mockGradingResult.questions.map(q => `
+                    <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 5px;">
+                        <p><strong>题目：</strong> ${q.questionText}</p>
+                        <p><strong>学生答案：</strong> ${q.studentAnswer}</p>
+                        <p><strong>正确答案：</strong> ${q.correctAnswer}</p>
+                        <p><strong>结果：</strong> <span style="color: ${q.isCorrect ? 'green' : 'red'}">${q.isCorrect ? '✅ 正确' : '❌ 错误'}</span></p>
+                        <p><strong>解析：</strong> ${q.explanation}</p>
+                    </div>
+                `).join('');
+                
+                showResult(`
+                    <h4>🎉 AI批改完成！</h4>
+                    <p><strong>总题数：</strong> ${mockGradingResult.totalQuestions}</p>
+                    <p><strong>正确题数：</strong> ${mockGradingResult.correctAnswers}</p>
+                    <p><strong>得分：</strong> ${mockGradingResult.score}分</p>
+                    <h5>详细批改结果：</h5>
+                    ${questionsHtml}
+                `, 'success');
+                
+            } catch (error) {
+                showResult(`❌ AI批改测试失败: ${error.message}`, 'error');
+            } finally {
+                showProgress(false);
+            }
+        }
+        
+        async function testCompleteFlow() {
+            if (selectedFiles.length === 0) {
+                showResult('请先选择图片文件', 'error');
+                return;
+            }
+            
+            showProgress();
+            
+            try {
+                updateProgress(10, '开始完整批改流程...');
+                await sleep(500);
+                
+                updateProgress(25, '图片预处理和质量优化...');
+                await sleep(1000);
+                
+                updateProgress(50, 'OCR识别图片内容...');
+                await sleep(1500);
+                
+                updateProgress(75, 'AI智能批改分析...');
+                await sleep(1500);
+                
+                updateProgress(90, '生成批改报告...');
+                await sleep(800);
+                
+                updateProgress(100, '批改完成！');
+                
+                showResult(`
+                    <h4>🎉 一键批改完成！</h4>
+                    <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                        <h5>📊 批改结果摘要：</h5>
+                        <ul>
+                            <li>✅ 图片质量检查：优秀</li>
+                            <li>🔍 OCR识别准确率：95%</li>
+                            <li>🎯 题目识别：2道题目</li>
+                            <li>📝 批改完成：2道全部正确</li>
+                            <li>📈 最终得分：100分</li>
+                        </ul>
+                        <p><strong>分析建议：</strong> 学生基础运算能力良好，可以尝试更复杂的题目。</p>
+                    </div>
+                    <p style="color: #666; font-size: 14px;">
+                        💡 这是演示数据。实际使用需要配置 Azure OCR 和 OpenAI API 密钥。
+                    </p>
+                `, 'success');
+                
+            } catch (error) {
+                showResult(`❌ 完整流程测试失败: ${error.message}`, 'error');
+            } finally {
+                showProgress(false);
+            }
+        }
+        
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // 页面加载完成后的提示
+        window.addEventListener('load', () => {
+            console.log('📱 测试页面加载完成');
+            console.log('🔧 可用功能: 文件上传、OCR测试、AI批改测试、完整流程测试');
+        });
+    </script>
+</body>
+</html>
