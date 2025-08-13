@@ -205,6 +205,7 @@ yarn install
 3. 提交更改
 4. 推送到分支
 5. 创建Pull Request
+6.测试师傅关联
 
 ## 📄 许可证
 
